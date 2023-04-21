@@ -1,0 +1,6 @@
+webservers:
+  hosts:
+    rossignol:
+      ansible_host: jfraeys.com
+    atomic:
+      ansible_host: services.jfraeys.com
