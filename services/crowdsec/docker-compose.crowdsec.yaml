@@ -1,0 +1,41 @@
+version: "3"
+
+secrets:
+  traefik_bouncer_api_key:
+    file: ./services/crowdsec/secrets/TRAEFIK_BOUNCER_API_KEY
+
+services:
+  crowdsec:
+    image: crowdsecurity/crowdsec:${CROWDSEC_IMAGE_VERSION:-latest}
+    container_name: crowdseco
+    restart: unless-stopped
+    ports:
+      - "8083:8080"
+    environment:
+      PGID: "1000"
+    volumes:
+      - ./services/crowdsec/data:/var/lib/crowdsec/data
+      - ./services/crowdsec/config:/etc/crowdsec
+      - ./services/traefik/log:/var/log/traefik:ro
+      - ./services/crowdsec/log:/var/log/crowdsec
+    networks:
+      - proxy
+
+  crowdsec-traefik-bouncer:
+    image: fbonalair/traefik-crowdsec-bouncer:${CROWDSEC_BOUNCER_IMAGE_VERSION:-latest}
+    container_name: bouncer-traefik
+    restart: unless-stopped
+    secrets:
+      - traefik_bouncer_api_key
+    environment:
+      - CROWDSEC_BOUNCER_API_KEY=/run/secrets/traefik_bouncer_api_key
+      - CROWDSEC_AGENT_HOST=crowdsec:8083
+      - GIN_MODE=release
+    depends_on:
+      - crowdsec
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

@@ -1,0 +1,71 @@
+version: "3"
+
+secrets:
+  es_passwd:
+    file: ./services/elasticsearch/secrets/ES_PASSWORD
+  kibana_es_passwd:
+    file: ./services/kibana/secrets/ES_PASSWORD
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTICSEARCH_IMAGE_VERSION:-8.3.3}
+    container_name: elasticsearch
+    volumes:
+      - ./services/elasticsearch/data:/usr/share/elasticsearch/data
+    secrets:
+      - es_passwd
+    environment:
+      cluster.name: ${ELASTICSEARCH_CLUSTER_NAME:-docker-cluster}
+      bootstrap.memory_lock: ${ELASTICSEARCH_MEMORY_LOCK:-true}
+      discovery.type: ${ELASTICSEARCH_DISCOVERY_TYPE:-single-node}
+      node.name: ${ELASTICSEARCH_NODE_NAME:-es01}
+      ES_JAVA_OPTS: ${ELASTICSEARCH_JAVA_OPTS:--Xmx256m -Xms256m}
+      ELASTIC_PASSWORD_FILE: /run/secrets/es_passwd
+    networks:
+      - efk
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    labels:
+      - 'traefik.enable=false'
+
+  fluentd:
+    image: fluent/fluentd:${FLUENTD_IMAGE_VERSION:-v1.15-1}
+    container_name: fluentd
+    volumes:
+      - ./services/efk/fluentd/config/:/fluentd/etc
+      - ./traefik/logs:/var/log/traefik
+    networks:
+      - efk
+    labels:
+      - 'traefik.enable=false'
+
+  kibana:
+    container_name: kibana
+    image: docker.elastic.co/kibana/kibana:${KIBANA_IMAGE_VERSION:-8.3.3}
+    depends_on:
+      - elasticsearch
+      - traefik
+    secrets:
+      - kibana_es_passwd
+    environment:
+      - ELASTICSEARCH_URL=http://localhost:9200
+      - ELASTIC_PASSWORD_FILE=/run/secrets/kibana_es_passwd
+    networks:
+      - efk
+      - proxy
+    labels:
+      - "traefik.http.routers.kibana.rule=Host(`kibana.services.${DOMAIN:-localhost}`)"
+      - "traefik.http.services.kibana.loadbalancer.server.port=5601"
+      - 'traefik.http.routers.kibana.middlewares=basic_auth@docker'
+
+volumes:
+  elasticsearch-data:
+
+
+networks:
+  ekf:
+    driver: bridge
+  proxy:
+    external: true

@@ -1,0 +1,25 @@
+version: "3"
+
+services:
+  pypi_server:
+    image: pypiserver/pypiserver:${PYPI_IMAGE_VERSION:-latest}
+    container_name: pypi_registry
+    restart: always
+    ports:
+      - "8010:8080"
+    volumes:
+      - ./data/packages:/data/packages
+      - ./data/auth:/data/auth
+    command: -P /data/auth/.htpasswd -a update,download,list /data/packages --hash-algo=sha256
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pkgs_route.rule=Host(`pkgs.services.${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.pkgs_route.entrypoints=websecure"
+      - "traefik.http.routers.registry_route.service=pypi_service"
+      - "traefik.http.services.registry_service.loadbalancer.server.port=8010"
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

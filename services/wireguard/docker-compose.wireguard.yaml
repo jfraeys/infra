@@ -1,0 +1,30 @@
+version: "3"
+services:
+  wireguard:
+    image: lscr.io/linuxserver/wireguard:latest
+    container_name: wireguard
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Toronto
+      - SERVERURL=57.134.16.172 #optional
+      - SERVERPORT=51820 #optional
+      - PEERS=2 #optional
+      - PEERDNS=1.1.1.1, 1.0.0.1 #optional
+      - INTERNAL_SUBNET=10.7.0.1/24 #optional
+      - ALLOWEDIPS=0.0.0.0/0, ::/0 #optional
+      - PERSISTENTKEEPALIVE_PEERS=25
+      - LOG_CONFS=true #optional
+    volumes:
+      - ./data/config:/config
+      # - /lib/modules:/lib/modules #optional
+    ports:
+      - 51820:51820/udp
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+      - net.ipv6.conf.all.disable_ipv6=0
+      - net.ipv6.conf.eth0.proxy_ndp=1
+    restart: unless-stopped

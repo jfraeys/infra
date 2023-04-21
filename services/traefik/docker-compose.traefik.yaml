@@ -1,0 +1,72 @@
+version: "3"
+
+secrets:
+  cf_dns_api_token:
+    file: ./secrets/CF_DNS_API_TOKEN
+
+services:
+  traefik:
+    image: traefik:${TRAEFIK_IMAGE_VERSION:-v2.8.3}
+    container_name: traefik
+    restart: unless-stopped
+    secrets:
+      - cf_dns_api_token
+    ports:
+      - "8001:80"
+      - "44301:443"
+      - "8183:8080"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./services/traefik/log:/var/log/traefik
+      - ./services/crowdsec/log:/var/log/crowdsec
+      - ./services/traefik/data/auth:/etc/traefik/auth
+      - ./services/traefik/data/cert:/etc/traefik/cert
+      - ./services/traefik/config/config.yml:/etc/traefik/config.yml:ro
+      - ./services/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+    environment:
+      - DOCKER_HOST=dockersocket
+      - CF_DNS_API_TOKEN=/run/secrets/cf_dns_api_token
+    labels:
+      - "traefik.enable=true"
+      # HTTPS router
+      - "traefik.http.routers.traefik-route.rule=Host(`traefik-dashboard.${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.traefik-route.entrypoints=http"
+#      - "traefik.http.routers.traefik.middlewares=auth@file"
+      - "traefik.http.routers.traefik.service=api@internal"
+    #            - "traefik.http.routers.traefik.tls=true"
+    #            - "traefik.http.services.traefik.loadbalancer.server.port=8080"
+    #            - "traefik.http.services.traefik.loadbalancer.sticky.cookie.httpOnly=true"
+    #            - "traefik.http.services.traefik.loadbalancer.sticky.cookie.secure=true"
+    networks:
+      - proxy
+    healthcheck:
+      test: [ 'CMD', 'traefik', 'healthcheck', '--ping' ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  traefik_config_validator:
+    image: ghcr.io/otto-de/traefik-config-validator:${TRAEFIK_CONFIG_VALID_IMAGE_VERSION:-latest}
+    profiles:
+      - test
+    volumes:
+      - ./services/traefik/traefik.yml:/usr/local/bin/traefik.yml
+      - ./services/traefik/config:/usr/local/bin/config
+    command: traefik-config-validator -cfg /usr/local/bin/traefik.yml -cfgdir /usr/local/bin/config
+
+  whoami:
+    image: traefik/whoami:${WHOAMI_IMAGE_VERSION:-latest}
+    profiles:
+      - test
+    container_name: "simple-service"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.entryPoints=https"
+      - "traefik.http.routers.whoami.rule=Host(`whoami.${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.whoami.tls=true"
+    networks:
+      - proxy
+
+networks:
+  proxy:

@@ -1,0 +1,37 @@
+version: "3"
+
+secrets:
+  vpn_pass:
+    file: ./services/openvpn/secrets/VPN_PASS
+
+services:
+  openvpn:
+    image: kylemanna/openvpn:${VPN_IMAGE_VERSION:-latest}
+    container_name: openvpn
+    privileged: true
+    env_file:
+      - services/openvpn/ovpn.env.dev
+    restart: always
+    environment:
+      VPN_PASSWORD: /run/secrets/vpn_passs
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - "1194:1194/udp"
+    volumes:
+      - ./services/openvpn:/etc/openvpn
+      - /lib/modules:/lib/modules:ro
+    labels:
+      - "traefik.http.routers.vpn_route.rule=Host(`vpn.services.${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.vpn_route.entrypoints=http"
+      - "traefik.http.routers.vpn_route.service=openvpn"
+      - "traefik.http.services.vpn_service.loadbalancer.server.port=1194"
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
+
+volumes:
+  ovpn-data:

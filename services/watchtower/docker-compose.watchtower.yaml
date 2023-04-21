@@ -1,0 +1,35 @@
+version: "3"
+
+services:
+  watchtower:
+    image: containrrr/watchtower:${WATCHTOWER_IMAGE_VERSION:-latest}
+    container_name: watchtower
+    restart: unless-stopped
+    env_file:
+      - watchtower/watchtower.env.dev
+    environment:
+      TZ: ${TZ}
+      WATCHTOWER_NOTIFICATIONS: slack
+      WATCHTOWER_NOTIFICATION_SLACK_HOOK_URL: "${SLACK_WEBHOOK_URL}"
+      WATCHTOWER_NOTIFICATION_SLACK_ICON_EMOJI: ":whale:"
+      WATCHTOWER_NOTIFICATION_SLACK_IDENTIFIER: "WatchTower [${HOSTNAME}]"
+      WATCHTOWER_SCHEDULE: ${WATCHTOWER_SCHEDULE:-'0 0 2 * * *'}
+      WATCHTOWER_CLEANUP: ${WATCHTOWER_CLEANUP:-true}
+      WATCHTOWER_ROLLING_RESTART: ${WATCHTOWER_ROLLING_RESTART:-true}
+      WATCHTOWER_LABEL_ENABLE: true
+      WATCHTOWER_INCLUDE_RESTARTING: true
+      WATCHTOWER_DEBUG: ${WATCHTOWER_DEBUG:-false}
+    labels:
+      - "traefik.enable=false"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./services/watchtower/.docker/config.json:/config.json
+    depends_on:
+      - registry
+    command: --cleanup
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "10"

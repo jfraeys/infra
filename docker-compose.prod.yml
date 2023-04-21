@@ -1,0 +1,82 @@
+version: "3"
+
+#secrets:
+
+services:
+    traefik:
+        image: pkgs.jfraeys.com/services/traefik:latest
+        command:
+            - "--log.level=WARN"
+            - "--accesslog=true"
+            - "--accessLog.filePath=/var/log/access.log"
+            - "--accessLog.filters.statusCodes=400-499"
+            - "--api.insecure=true"
+            - "--providers.docker=true"
+            - "--providers.docker.exposedbydefault=false"
+            - "--entrypoints.web.address=:80"
+        labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.traefik=true"
+
+    fail2ban:
+        image: pkgs.jfraeys.com/services/fail2ban:latest
+        env_file:
+            - services/fail2ban/fail2ban.env.prod
+    
+    ###################### OpenVPN Server Container ######################
+
+    openvpn:
+        image: pkgs.jfraeys.com/services/openvpn:latest
+        env_file:
+            - ./services/openvpn/ovpn.env.prod
+        depends_on:
+            -   traefik
+#        labels:
+
+    ###################### Authelia Server Container ######################
+    
+    ###################### Registry Server Container ######################
+    registry_cache:
+        image: redis:latest
+        container_name: registry_cache
+        ports:
+            - "6379:6379"
+        depends_on:
+            - traefik
+
+    registry_ui:
+        image: pkgs.jfraeys.com/services/registry_ui:latest
+        depends_on:
+            - traefik
+#        labels:
+
+    registry:
+        image: pkgs.jfraeys.com/services/registry:latest
+        depends_on:
+            - traefik
+#        labels:
+
+    
+    ###################### Pypi Server Container ######################
+    pypi_server:
+        image: pkgs.jfraeys.com/services/pypi_server:latest
+        depends_on:
+            - traefik
+#        labels:
+    
+    ###################### Watchtower Server Container ######################
+    watchtower:
+        image: pkgs.jfraeys.com/services/watchtower:latest
+        env_file:
+            - services/watchtower/services/watchtower.env.prod
+        depends_on:
+            - traefik
+#        labels:
+
+
+volumes:
+    ovpn-data:
+
+networks:
+    proxy:
+        external: true

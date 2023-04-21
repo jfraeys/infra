@@ -1,0 +1,82 @@
+version: "3"
+
+secrets:
+  storage_passwd:
+    file: ./secrets/STORAGE_PASSWORD
+  storage_encryption_key:
+    file: ./secrets/STORAGE_ENCRYPTION_KEY
+  storage_encryption_key:
+    file: ./secrets/SESSION_SECRET
+  jwt_secret:
+    file: ./secrets/JWT_SECRET
+  ldap_passwd:
+    file: ./secrets/LDAP_PASSWD
+
+services:
+  ldap:
+    image: osixia/openldap:${LDAP_IMAGE_VERSION:-1.5.0}
+    container_name: ldap
+    secrets: [ldap_passwd]
+    environment:
+      - LDAP_ORGANISATION=${ORGANISATION}
+      - LDAP_DOMAIN=${DOMAIN:-localhost}
+      - "LDAP_BASE_DN=dc=${DOMAIN_BASE_DN},dc=com"
+      - LDAP_ADMIN_PASSWORD_FILE=/run/secrets/ldap_passwd
+    ports:
+      - "389:389"
+      - "636:636"
+
+  authelia_postgres:
+    image: postgres:${AUTH_POSTGRES_IMAGE_VERSION:-13}
+    container_name: authelia_postgres
+    env_file:
+      - authelia.env.dev
+    ports:
+      - "5433:5432"
+    secrets: [storage_passwd]
+    environment:
+      - MONGO_INITDB_USERNAME=$MONGO_INITDB_USERNAME
+      - MONGO_INITDB_PASSWORD_FILE=/run/secrets/storage_passwd
+    volumes:
+      - ./data/postgres:/var/lib/postgressql/data
+    networks:
+      - authelia
+
+  authelia:
+    image: authelia/authelia:${AUTHELIA_IMGE_VERSION:-latest}
+    container_name: authelia
+    restart: unless-stopped
+    env_file:
+      - authelia.env.dev
+    ports:
+      - "9091:9091"
+    volumes:
+      - ./data/config:/config
+      - ./log:/var/log/authelia:ro
+    secrets: [jwt_secret, storage_encryption_key, storage_passwd, storage_encryption_key, ldap_passwd]
+    environment:
+      - TZ=America/Toronto
+      - AUTHELIA_JWT_SECRET_FILE=/run/secrets/jwt_secret
+      - AUTHELIA_SESSION_SECRET_FILE=/run/secrets/storage_encryption_key
+      - AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD_FILE=/run/secrets/ldap_passwd
+      - AUTHELIA_STORAGE_POSTGRES_PASSWORD_FILE=/run/secrets/storage_passwd
+      - AUTHELIA_STORAGE_ENCRYPTION_KEY_FILE=/run/secrets/storage_encryption_key
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.docker.network=proxy'
+      - 'traefik.http.routers.authelia.rule=Host(`auth.services.${DOMAIN:-localhost}`)'
+      - 'traefik.http.routers.authelia.entryPoints=https'
+      - 'traefik.http.routers.authelia.tls=true'
+      - 'traefik.http.routers.authelia.middlewares=auth@file'
+    depends_on:
+      - ldap
+      - authelia_postgres
+    networks:
+      - authelia
+      - proxy
+
+networks:
+  authelia:
+    driver: bridge
+  proxy:
+    external: true

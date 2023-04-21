@@ -1,0 +1,52 @@
+version: "3"
+
+services:
+  registry_ui:
+    # NOT WORKING
+    image: parabuzzle/craneoperator:${REGISTRY_UI_IMAGE_VERSION:-latest}
+    container_name: registry_ui
+    ports:
+      - "8086:80"
+    environment:
+      - REGISTRY_HOST=localhost
+      - REGISTRY_PORT=5001
+      - REGISTRY_PROTOCOL=http
+      - SSL_VERIFY=false
+      - ALLOW_REGISTRY_LOGIN=true
+      - REGISTRY_ALLOW_DELETE=true
+      - TITLE=${ORGANISATION}
+    depends_on:
+      - registry
+
+  registry:
+    image: registry:${REGISTRY_IMAGE_VERSION:-2}
+    container_name: registry
+    restart: always
+    environment:
+      - REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY=/data
+      - REGISTRY_STORAGE_CACHE_BLOBDESCRIPTOR=redis
+      - REGISTRY_REDIS_ADDR=localhost:6379
+      - REGISTRY_AUTH=htpasswd
+      - REGISTRY_AUTH_HTPASSWD_REALM=Registry Realm
+      - REGISTRY_AUTH_HTPASSWD_PATH=auth/registry.password
+      - REGISTRY_STORAGE_DELETE_ENABLED=true
+    volumes:
+      #            - ./services/registry/config/configuration.yml:/etc/docker/registry/configuration.yml:ro
+      - ./services/registry/data:/data
+      - ./services/registry/auth:/auth
+    ports:
+      - "5001:5000"
+    labels:
+      - "traefik.http.routers.registry_route.rule=Host(`registry.services.${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.registry_route.entrypoints=websecure"
+      - "traefik.http.routers.registry_route.service=registry_service"
+      - "traefik.http.services.registry_service.loadbalancer.server.port=5001"
+    networks:
+      - proxy
+      - cache
+
+networks:
+  proxy:
+    external: true
+  cache:
+    external: true

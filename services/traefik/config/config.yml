@@ -1,0 +1,110 @@
+http:
+  ## Redirect HTTP to HTTPS
+  middlewares:
+    https-redirect:
+      redirectScheme:
+        scheme: https
+
+    ssl-header:
+      headers:
+        customRequestHeaders:
+          X-Forward-Proto: 'https'
+
+    # Only Allow Local networks, REMOVE for prod
+    local-ipwhitelist:
+      ipWhiteList:
+        sourceRange:
+          - 127.0.0.1/32 # localhost
+          - 192.168.1.1/24 # LAN Subnet
+          - 10.0.0.0/8 #LAN Subnet
+
+    private-network-ipwhitelist:
+      ipwhitelist:
+        sourceRange:
+          - 127.0.0.1/32
+          - 10.7.0.1/24
+          - 172.105.28.44/32
+
+    # Authelia guard
+    auth:
+      forwardAuth:
+        address: http://authelia:9091/api/verify?rd=https://auth.jfraeys.com # replace auth with your authelia container name
+        trustForwardHeader: true
+        authResponseHeaders:
+          - Remote-User
+          - Remote-Groups
+          - Remote-Name
+          - Remote-Email
+
+    # Authelia basic auth guard
+    auth-basic:
+      forwardAuth:
+        address: http://authelia:9091/api/verify?auth=basic # replace auth with your authelia container name
+        trustForwardHeader: true
+        authResponseHeaders:
+          - Remote-User
+          - Remote-Groups
+          - Remote-Name
+          - Remote-Email
+
+    # Limited requests, ADD for prod
+    #    limited-inflightreq:
+    #      inFlightReq:
+    #        amount: 10
+
+    # Security headers
+    default-security-headers:
+      headers:
+        customResponseHeaders:
+          X-Robots-Tag: 'none,noarchive,nosnippet,notranslate,noimageindex'
+          X-Forwarded-Proto: 'https'
+          server: ''
+        customRequestHeaders:
+          X-Forwarded-Proto: 'https'
+        sslProxyHeaders:
+          X-Forwarded-Proto: 'https'
+        referrerPolicy: 'same-origin'
+        hostsProxyHeaders:
+          - 'X-Forwarded-Host'
+        contentTypeNosniff: true
+        browserXssFilter: true
+        forceSTSHeader: true
+        stsIncludeSubdomains: true
+        stsSeconds: 63072000
+        stsPreload: true
+
+    # Error page
+    errors-pages:
+      errors:
+        query: 'error{status}/'
+        service: traefik-error-pages
+        status:
+          - '403-404'
+          - '500'
+          - '504'
+
+    #  # Enables the GZIP compression (https://docs.traefik.io/middlewares/compress/)
+    #    #   if the response body is larger than 1400 bytes
+    #    #   if the Accept-Encoding request header contains gzip
+    #    #   if the response is not already compressed (Content-Encoding is not set)
+    #    # Use with traefik.http.routers.myRouter.middlewares: "gzip@file"
+    gzip:
+      compress: {}
+
+    crowdsec-bouncer:
+      forwardauth:
+        address: http://bouncer-traefik:8080/api/v1/forwardAuth
+        trustForwardHeader: true
+
+# Only use secure ciphers - https://ssl-config.mozilla.org/#server=traefik&version=2.6.0&config=intermediate&guideline=5.6
+tls:
+  options:
+    default:
+      minVersion: VersionTLS12
+      cipherSuites:
+        - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+        - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+        - TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305
+        - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305

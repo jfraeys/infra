@@ -1,0 +1,92 @@
+version: "3"
+
+#secrets:
+
+services:
+    traefik:
+        image: localhost:5001/simple/traefik:latest
+        command:
+            - "--log.level=WARN"
+            - "--accesslog=true"
+            - "--accessLog.filePath=/var/log/access.log"
+            - "--accessLog.filters.statusCodes=400-499"
+            - "--api.insecure=true"
+            - "--providers.docker=true"
+            - "--providers.docker.exposedbydefault=false"
+            - "--entrypoints.web.address=:80"
+        depends_on:
+          - registry
+        labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.traefik=true"
+
+    fail2ban:
+        image: localhost:5001/simple//fail2ban:latest
+        env_file:
+            - services/fail2ban/fail2ban.env.prod
+        depends_on:
+          - traefik
+          - registry
+
+    ###################### OpenVPN Server Container ######################
+
+    openvpn:
+        image: localhost:5001/simple/openvpn:latest
+        env_file:
+            - ./services/openvpn/ovpn.env.prod
+        depends_on:
+            - traefik
+            - registry
+#        labels:
+
+    ###################### Authelia Server Container ######################
+
+    ###################### Registry Server Container ######################
+    registry_cache:
+        image: redis:latest
+        container_name: registry_cache
+        ports:
+            - "6379:6379"
+        depends_on:
+            - traefik
+            - registry
+
+    registry_ui:
+        image: localhost:5001/simple/registry_ui:latest
+        depends_on:
+            - traefik
+            - registry
+#        labels:
+
+    registry:
+        image: localhost:5001/simple/registry:latest
+        depends_on:
+            - traefik
+#        labels:
+
+
+    ###################### Pypi Server Container ######################
+    pypi_server:
+        image: localhost:5001/simple/pypi_server:latest
+        depends_on:
+            - traefik
+            - registry
+#        labels:
+
+    ###################### Watchtower Server Container ######################
+    watchtower:
+        image: localhost:5001/simple/watchtower:latest
+        env_file:
+            - services/watchtower/services/watchtower.env.prod
+        depends_on:
+            - traefik
+            - registry
+#        labels:
+
+
+volumes:
+    ovpn-data:
+
+networks:
+    proxy:
+        external: true

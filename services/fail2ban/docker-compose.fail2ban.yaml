@@ -1,0 +1,20 @@
+---
+version: "3"
+services:
+  fail2ban:
+    image: lscr.io/linuxserver/fail2ban:latest
+    container_name: fail2ban
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    network_mode: host
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Toronto
+    volumes:
+      - ./config:/config
+      - ./log:/var/log:ro
+      - ./services/authelia/log:/remotelogs/authelia:ro #optional
+      - ./services/bitwarden/log:/remotelogs/vaultwarden:ro #optional
+    restart: unless-stopped
